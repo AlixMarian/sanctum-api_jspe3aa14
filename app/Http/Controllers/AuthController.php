@@ -9,19 +9,13 @@ use App\Models\User;
 
 class AuthController extends Controller
 {
-    public function showRegistrationForm()
-    {
-        return view('auth.register');
-    }
-
     public function register(Request $request)
     {
-        // email = 'user@domain.com';
         try {
             $data = $request->validate([
-                'name' => 'required|string|max:255|unique:users',
+                'name' => 'required|string|max:255',
                 'email' => 'required|email|unique:users',
-                'password' => 'required|string|min:8',
+                'password' => 'required|string|min:8|confirmed',
             ]);
 
             $newUser = User::create([
@@ -32,23 +26,11 @@ class AuthController extends Controller
 
             $token = $newUser->createToken('API-TOKEN')->plainTextToken;
 
-            return response()->json([
-                'status' => 'Ok',
-                'message' => 'User created successfully',
-                'token' => $token,
-            ], 200);
+            return redirect()->route('dashboard')->with('success', 'Registration successful.')->with('token', $token);
 
         } catch (\Throwable $error) {
-            return response()->json([
-                'status' => 'Error',
-                'message' => $error->getMessage(),
-            ], 500);
+            return redirect()->route('register')->withErrors(['error' => $error->getMessage()]);
         }
-    }
-
-    public function showLoginForm()
-    {
-        return view('auth.login');
     }
 
     public function login(Request $request)
@@ -62,22 +44,15 @@ class AuthController extends Controller
             if (Auth::attempt(['email' => $data['email'], 'password' => $data['password']])) {
                 $request->session()->regenerate();
                 $token = $request->user()->createToken('API-TOKEN')->plainTextToken;
-                return response()->json([
-                    'status' => 'Ok',
-                    'message' => 'Login successful',
-                    'token' => $token,
-                ], 200);
+
+                return redirect()->route('dashboard')->with('success', 'Login successful.')->with('token', $token);
+
             } else {
-                return response()->json([
-                    'status' => 'Error',
-                    'message' => 'Invalid credentials',
-                ], 401);
+                return redirect()->route('login')->withErrors(['error' => 'Invalid credentials']);
             }
+
         } catch (\Throwable $error) {
-            return response()->json([
-                'status' => 'Error',
-                'message' => $error->getMessage(),
-            ], 500);
+            return redirect()->route('login')->withErrors(['error' => $error->getMessage()]);
         }
     }
 
@@ -86,19 +61,13 @@ class AuthController extends Controller
         try {
             $request->user()->tokens()->delete();
 
-            Auth::logout();
+            Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return response()->json([
-                'status' => 'Ok',
-                'message' => 'Logout successful',
-            ], 200);
+            return redirect()->route('login')->with('success', 'Logout successful.');
         } catch (\Throwable $error) {
-            return response()->json([
-                'status' => 'Error',
-                'message' => $error->getMessage(),
-            ], 500);
+            return redirect()->route('dashboard')->withErrors(['error' => $error->getMessage()]);
         }
     }
 
