@@ -16,43 +16,35 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
-        //email = 'user@domain.com';
-        try{
-            $validateUser = Validator::make($request->all(),[
-                'name'=> 'required|string|max:255|unique:users',
+        // email = 'user@domain.com';
+        try {
+            $data = $request->validate([
+                'name' => 'required|string|max:255|unique:users',
                 'email' => 'required|email|unique:users',
                 'password' => 'required|string|min:8',
             ]);
-        
-            if($validateUser->fails()){
-                return response()->json([
-                    'status' => 'Error',
-                    'message' => 'Validation Error',
-                    'errors' => $validateUser->errors(),
-                ],401);
-            }
 
             $newUser = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
             ]);
+
+            $token = $newUser->createToken('API-TOKEN')->plainTextToken;
 
             return response()->json([
                 'status' => 'Ok',
-                'message' => 'User is created successfullt',
-                'token' -> $newUser->createToken('API-TOKEN')->plainTextToken,
-            ],200);
-        
-        }catch (\Throwable $error){
-            return response()-json([
+                'message' => 'User created successfully',
+                'token' => $token,
+            ], 200);
+
+        } catch (\Throwable $error) {
+            return response()->json([
                 'status' => 'Error',
                 'message' => $error->getMessage(),
-            ],500);
+            ], 500);
         }
-
-        }
-    
+    }
 
     public function showLoginForm()
     {
@@ -61,43 +53,69 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        try{
-            $credentials = Validator::make($request->only(['name','password']),[
-                'name' => 'required|string',
-                'password' => 'required|string',
+        try {
+            $data = $request->validate([
+                'email' => 'required|email|exists:users,email',
+                'password' => 'required|string|min:8',
             ]);
 
-            if($credentials->fails()){
-                return response()->json([
-                    'status'=> 'Error',
-                    'message'=> 'Validation Error',
-                    'errors' => $credentials->errors(),
-                ],401);
-            }
-
-            if (Auth::attempt($credentials)){
+            if (Auth::attempt(['email' => $data['email'], 'password' => $data['password']])) {
                 $request->session()->regenerate();
                 $token = $request->user()->createToken('API-TOKEN')->plainTextToken;
                 return response()->json([
                     'status' => 'Ok',
-                    'message' => 'Login Successful',
+                    'message' => 'Login successful',
                     'token' => $token,
-                ],200);
+                ], 200);
+            } else {
+                return response()->json([
+                    'status' => 'Error',
+                    'message' => 'Invalid credentials',
+                ], 401);
             }
-        }catch (\Throwable $error){
-            return response()-json([
+        } catch (\Throwable $error) {
+            return response()->json([
                 'status' => 'Error',
                 'message' => $error->getMessage(),
-            ],500);
+            ], 500);
         }
     }
 
     public function logout(Request $request)
     {
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        try {
+            $request->user()->tokens()->delete();
 
-        return redirect()->route('login');
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Logout successful',
+            ], 200);
+        } catch (\Throwable $error) {
+            return response()->json([
+                'status' => 'Error',
+                'message' => $error->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function userInfo()
+    {
+        try {
+            $userData = auth()->user();
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'User profile retrieved',
+                'data' => $userData,
+            ], 200);
+        } catch (\Throwable $error) {
+            return response()->json([
+                'status' => 'Error',
+                'message' => $error->getMessage(),
+            ], 500);
+        }
     }
 }
